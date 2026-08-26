@@ -46,12 +46,13 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
+// Settings in bottom bar so Core URL / CONNECT is always reachable
 val bottomBarScreens = listOf(
     Screen.Overview,
     Screen.Devices,
-    Screen.Tasks,
     Screen.Terminal,
-    Screen.Nervous
+    Screen.Nervous,
+    Screen.Settings
 )
 
 @Composable
