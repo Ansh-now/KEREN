@@ -8,29 +8,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.keren.control.domain.model.Task
+import com.keren.control.domain.model.TaskStatus
 import com.keren.control.ui.theme.*
-
-data class TaskUi(
-    val id: String,
-    val command: String,
-    val target: String,
-    val status: String
-)
+import com.keren.control.ui.viewmodel.TasksViewModel
 
 @Composable
-fun TasksScreen() {
-    val queued = listOf(
-        TaskUi("#104", "python --version", "PC-NODE-01", "QUEUED"),
-        TaskUi("#105", "ls -la", "PC-NODE-01", "QUEUED")
-    )
-    val executed = listOf(
-        TaskUi("#101", "npm install", "PC-NODE-01", "COMPLETED"),
-        TaskUi("#102", "git pull", "PC-NODE-01", "COMPLETED"),
-        TaskUi("#103", "docker compose up", "PC-NODE-01", "FAILED")
-    )
+fun TasksScreen(
+    viewModel: TasksViewModel = hiltViewModel()
+) {
+    val queued by viewModel.queued.collectAsState()
+    val executing by viewModel.executing.collectAsState()
+    val history by viewModel.history.collectAsState()
 
     Column(
         modifier = Modifier
@@ -43,25 +38,51 @@ fun TasksScreen() {
 
         Text("QUEUED", color = KerenAmber, fontSize = 13.sp)
         Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(queued) { TaskRow(it) }
+        if (queued.isEmpty()) {
+            Text("No queued tasks", color = KerenTextDim, fontSize = 12.sp)
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.heightIn(max = 160.dp)
+            ) {
+                items(queued, key = { it.id }) { TaskRow(it) }
+            }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("EXECUTED", color = KerenGreen, fontSize = 13.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("EXECUTING", color = KerenBlueGlow, fontSize = 13.sp)
         Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(executed) { TaskRow(it) }
+        if (executing.isEmpty()) {
+            Text("No executing tasks", color = KerenTextDim, fontSize = 12.sp)
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.heightIn(max = 120.dp)
+            ) {
+                items(executing, key = { it.id }) { TaskRow(it) }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("HISTORY", color = KerenGreen, fontSize = 13.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        if (history.isEmpty()) {
+            Text("No completed tasks yet", color = KerenTextDim, fontSize = 12.sp)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(history, key = { it.id }) { TaskRow(it) }
+            }
         }
     }
 }
 
 @Composable
-private fun TaskRow(task: TaskUi) {
+private fun TaskRow(task: Task) {
     val statusColor = when (task.status) {
-        "COMPLETED" -> KerenGreen
-        "FAILED" -> KerenRed
-        "QUEUED" -> KerenAmber
+        TaskStatus.COMPLETED -> KerenGreen
+        TaskStatus.FAILED, TaskStatus.TIMEOUT -> KerenRed
+        TaskStatus.QUEUED, TaskStatus.RECEIVED, TaskStatus.PLANNING -> KerenAmber
+        TaskStatus.EXECUTING, TaskStatus.DISPATCHED -> KerenBlueGlow
         else -> KerenGrey
     }
     Row(
@@ -72,10 +93,14 @@ private fun TaskRow(task: TaskUi) {
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text("${task.id}  ${task.command}", color = KerenText, fontSize = 13.sp)
-            Text(task.target, color = KerenGrey, fontSize = 11.sp)
+            Text(
+                text = task.targetNodeId ?: "—",
+                color = KerenGrey,
+                fontSize = 11.sp
+            )
         }
-        Text(task.status, color = statusColor, fontSize = 12.sp)
+        Text(task.status.name, color = statusColor, fontSize = 12.sp)
     }
 }
