@@ -1,5 +1,6 @@
 package com.keren.control.data.connection
 
+import com.keren.control.data.remote.CoreUrlHolder
 import com.keren.control.data.remote.api.KerenApi
 import com.keren.control.data.remote.websocket.KerenWebSocket
 import com.keren.control.data.remote.websocket.WsConnectionEvent
@@ -20,18 +21,11 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Central connection authority for the Android client.
- *
- * Responsibilities:
- * - CONNECTING / CONNECTED / DISCONNECTED / RECONNECTING / ERROR
- * - Exponential backoff reconnect
- * - On reconnect: caller should resync devices + tasks (via repositories)
- */
 @Singleton
 class ConnectionManager @Inject constructor(
     private val api: KerenApi,
-    private val webSocket: KerenWebSocket
+    private val webSocket: KerenWebSocket,
+    private val urlHolder: CoreUrlHolder
 ) : ConnectionRepository {
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -52,6 +46,9 @@ class ConnectionManager @Inject constructor(
 
     override fun updateConfig(config: CoreConfig) {
         _config.value = config
+        if (config.httpBaseUrl.isNotBlank()) {
+            urlHolder.setHttpBaseUrl(config.httpBaseUrl)
+        }
     }
 
     override suspend fun connect() {
@@ -64,9 +61,12 @@ class ConnectionManager @Inject constructor(
             return
         }
 
+        if (cfg.httpBaseUrl.isNotBlank()) {
+            urlHolder.setHttpBaseUrl(cfg.httpBaseUrl)
+        }
+
         _connection.update { it.copy(state = ConnectionState.CONNECTING, lastError = null) }
 
-        // Health check via REST when possible
         try {
             if (cfg.httpBaseUrl.isNotBlank()) {
                 val health = api.health()
@@ -75,11 +75,10 @@ class ConnectionManager @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            // Health optional on first connect; WS still attempted
+            // Health may fail; still attempt WebSocket
         }
 
         val ws = cfg.wsUrl.ifBlank {
-            // Derive ws from http if needed
             cfg.httpBaseUrl
                 .replace("https://", "wss://")
                 .replace("http://", "ws://")
@@ -97,8 +96,6 @@ class ConnectionManager @Inject constructor(
     }
 
     override suspend fun resync() {
-        // Repositories listen and call refresh() when CONNECTED.
-        // This method is the explicit hook after reconnect.
         connect()
     }
 
