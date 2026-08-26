@@ -13,28 +13,26 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.keren.control.domain.model.ConnectionState
+import com.keren.control.domain.model.Device
+import com.keren.control.domain.model.DeviceStatus
 import com.keren.control.ui.theme.*
-
-data class DeviceUi(
-    val name: String,
-    val type: String,
-    val status: String,
-    val ip: String,
-    val capabilities: List<String>,
-    val currentTask: String?
-)
+import com.keren.control.ui.viewmodel.DevicesViewModel
 
 @Composable
-fun DevicesScreen() {
-    val devices = listOf(
-        DeviceUi("PC-NODE-01", "PC", "ONLINE", "192.168.1.10", listOf("Terminal", "Python", "Docker"), null),
-        DeviceUi("PHONE", "Phone", "ONLINE", "192.168.1.25", listOf("Control", "Observe"), null)
-    )
+fun DevicesScreen(
+    viewModel: DevicesViewModel = hiltViewModel()
+) {
+    val devices by viewModel.devices.collectAsState()
+    val connection by viewModel.connection.collectAsState()
 
     Box(
         modifier = Modifier
@@ -46,24 +44,53 @@ fun DevicesScreen() {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "DEVICE REGISTERED",
-                color = KerenBlue,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(devices) { device ->
-                    DeviceCard(device)
+                Text(
+                    text = "DEVICE REGISTERED",
+                    color = KerenBlue,
+                    fontSize = 18.sp
+                )
+                Text(
+                    text = connection.state.name,
+                    color = when (connection.state) {
+                        ConnectionState.CONNECTED -> KerenGreen
+                        ConnectionState.ERROR -> KerenRed
+                        ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> KerenAmber
+                        else -> KerenGrey
+                    },
+                    fontSize = 11.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (connection.state != ConnectionState.CONNECTED && devices.isEmpty()) {
+                Text(
+                    text = "Not connected to KEREN Core.\nOpen Settings → set Core URL → CONNECT.",
+                    color = KerenTextDim,
+                    fontSize = 13.sp
+                )
+            } else if (devices.isEmpty()) {
+                Text(
+                    text = "No devices registered yet.",
+                    color = KerenTextDim,
+                    fontSize = 13.sp
+                )
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(devices, key = { it.id }) { device ->
+                        DeviceCard(device)
+                    }
                 }
             }
         }
 
         FloatingActionButton(
-            onClick = { /* TODO: Add Device */ },
+            onClick = { /* Add Device flow — P1 */ },
             containerColor = KerenBlue,
             contentColor = KerenBlack,
             modifier = Modifier
@@ -76,7 +103,14 @@ fun DevicesScreen() {
 }
 
 @Composable
-private fun DeviceCard(device: DeviceUi) {
+private fun DeviceCard(device: Device) {
+    val statusColor = when (device.status) {
+        DeviceStatus.ONLINE -> OnlineGreen
+        DeviceStatus.OFFLINE, DeviceStatus.ERROR -> OfflineRed
+        DeviceStatus.STALE, DeviceStatus.CONNECTING -> KerenAmber
+        DeviceStatus.UNKNOWN -> KerenGrey
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -89,24 +123,38 @@ private fun DeviceCard(device: DeviceUi) {
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(if (device.status == "ONLINE") OnlineGreen else OfflineRed)
+                    .background(statusColor)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(text = device.name, color = KerenText, fontSize = 15.sp)
             Spacer(modifier = Modifier.weight(1f))
-            Text(text = device.status, color = if (device.status == "ONLINE") KerenGreen else KerenRed, fontSize = 12.sp)
+            Text(text = device.status.name, color = statusColor, fontSize = 12.sp)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = "TYPE: ${device.type}", color = KerenGrey, fontSize = 12.sp)
-        Text(text = "IP: ${device.ip}", color = KerenGrey, fontSize = 12.sp)
-        Text(
-            text = "CAPABILITIES: ${device.capabilities.joinToString(", ")}",
-            color = KerenGrey,
-            fontSize = 12.sp
-        )
-        if (device.currentTask != null) {
-            Text(text = "CURRENT: ${device.currentTask}", color = KerenAmber, fontSize = 12.sp)
+        device.address?.let {
+            Text(text = "ADDRESS: $it", color = KerenGrey, fontSize = 12.sp)
+        }
+        if (device.capabilities.isNotEmpty()) {
+            Text(
+                text = "CAPABILITIES: ${device.capabilities.joinToString(", ")}",
+                color = KerenGrey,
+                fontSize = 12.sp
+            )
+        }
+        device.currentTaskId?.let {
+            Text(text = "CURRENT TASK: $it", color = KerenAmber, fontSize = 12.sp)
+        }
+        device.telemetry?.let { t ->
+            val parts = buildList {
+                t.cpuPercent?.let { add("CPU ${it.toInt()}%") }
+                t.ramPercent?.let { add("RAM ${it.toInt()}%") }
+                t.batteryPercent?.let { add("BAT ${it.toInt()}%") }
+            }
+            if (parts.isNotEmpty()) {
+                Text(text = parts.joinToString("  "), color = KerenTextDim, fontSize = 11.sp)
+            }
         }
     }
 }
