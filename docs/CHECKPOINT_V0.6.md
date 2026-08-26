@@ -8,89 +8,49 @@
 
 ## CHECKPOINT 0 — Initial Audit (2026-08-26)
 
-### Repository structure
+Full audit completed. Demo data locations mapped. Core is NOT in this repo. Android is client-only.
 
-```
-KEREN/
-├── app/
-│   ├── build.gradle.kts
-│   ├── proguard-rules.pro
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/keren/control/
-│       │   ├── KerenApp.kt
-│       │   ├── MainActivity.kt
-│       │   ├── domain/model/NervousModels.kt
-│       │   └── ui/
-│       │       ├── navigation/KerenNavHost.kt
-│       │       ├── screens/
-│       │       │   ├── overview/OverviewScreen.kt
-│       │       │   ├── devices/DevicesScreen.kt
-│       │       │   ├── tasks/TasksScreen.kt
-│       │       │   ├── terminal/TerminalScreen.kt
-│       │       │   ├── nervous/NervousSystemScreen.kt
-│       │       │   ├── logs/LogsScreen.kt
-│       │       │   └── settings/SettingsScreen.kt
-│       │       └── theme/
-│       └── res/
-├── gradle/
-├── build.gradle.kts
-├── settings.gradle.kts
-└── README.md
-```
+See previous commit history for full audit table.
 
-### What exists (good)
+---
 
-- Dark theme + monospace typography
-- Bottom navigation (Overview, Devices, Tasks, Terminal, Nervous)
-- Hilt Application + MainActivity
-- Compose Material 3 + Navigation
-- Nervous System Canvas foundation (nodes, edges, packets, pulse, zoom/pan)
-- Domain models for Nervous graph (`KerenNode`, `KerenEdge`, `LivePacket`, `NervousEvent`, `NervousSnapshot`)
-- Networking dependencies already in Gradle (OkHttp, Retrofit, Gson)
-- Coroutines + ViewModel Compose deps present
+## CHECKPOINT 1 — Data layer + Connection foundation (2026-08-26)
 
-### What is MISSING / DEMO
+### Added
 
-| Area | Status | Problem |
-|------|--------|---------|
-| `data/` layer | **Missing** | No API, no WebSocket, no DTOs, no repositories |
-| ViewModels | **Missing** | Screens hold local/hardcoded state |
-| ConnectionManager | **Missing** | No connect/reconnect/resync |
-| DeviceRepository | **Missing** | DevicesScreen has hardcoded `DeviceUi` list |
-| TaskRepository | **Missing** | TasksScreen has hardcoded queued/executed lists |
-| Event bus client | **Missing** | No WebSocket event parser |
-| Terminal submit | **Demo** | Hardcoded output lines, no POST /tasks |
-| Overview | **Demo** | Static status numbers + static activity lines |
-| Logs | **Demo** | Static log strings |
-| Nervous System data | **Demo** | `createDemoSnapshot()` + continuous infinite packet animation |
-| Settings | **Partial** | Hardcoded `ws://192.168.1.10:8080` |
-| Auth | **Missing** | No token / pairing |
-| KEREN Core backend | **Not in this repo** | Android is client-only |
+**Domain models**
+- `Device` + `DeviceStatus` + `DeviceTelemetry`
+- `Task` + `TaskStatus` + `CreateTaskRequest`
+- `KerenEvent` + `KerenEventType` constants
+- `ConnectionState` + `CoreConfig` + `ConnectionInfo`
 
-### Demo / static data locations (must be removed)
+**Repository interfaces**
+- `DeviceRepository`
+- `TaskRepository`
+- `EventRepository`
+- `ConnectionRepository`
 
-1. `DevicesScreen.kt` — hardcoded `listOf(DeviceUi(...))`
-2. `TasksScreen.kt` — hardcoded queued + executed lists
-3. `OverviewScreen.kt` — static status pairs + static activity lines
-4. `TerminalScreen.kt` — hardcoded output `mutableStateListOf(...)`
-5. `LogsScreen.kt` — hardcoded log lines
-6. `NervousSystemScreen.kt` — `createDemoSnapshot()` + infinite packet loop
-7. `SettingsScreen.kt` — hardcoded Core address
+**Data / remote**
+- `KerenApi` (Retrofit v0.6 REST contract)
+- DTOs: `DeviceDto`, `TaskDto`, `CreateTaskDto`, `EventDto`, `HealthDto`, `TelemetryDto`
+- `KerenWebSocket` — typed event parsing, no raw JSON to UI
+- `ConnectionManager` — CONNECTING/CONNECTED/DISCONNECTED/RECONNECTING/ERROR + exponential backoff reconnect
+- `NetworkModule` (Hilt) — OkHttp + Retrofit + Gson
 
-### Backend dependency
+### Still TODO (next checkpoints)
 
-**KEREN Core is NOT present in this repository.**
+- Repository implementations (`DeviceRepositoryImpl`, `TaskRepositoryImpl`, `EventRepositoryImpl`)
+- Dynamic Retrofit base URL from Settings / CoreConfig
+- ViewModels for each screen
+- Wire screens to StateFlows (remove hardcoded lists)
+- Settings screen editable Core URL + Connect button
+- Terminal → `POST /tasks` + stdout/stderr from events
+- Nervous System: stop infinite demo packets; only animate on real events
 
-Android app must treat Core as external authority.
+### Important note
 
-Required before claiming integration complete:
-
-- Define REST + WebSocket protocol (v0.6)
-- Implement typed clients + repositories
-- Implement ConnectionManager (connect / reconnect / resync)
-- Wire all screens to StateFlows from repositories
-- Document required Core endpoints
+Until KEREN Core is running and reachable, UI will correctly show **DISCONNECTED / ERROR**.  
+That is expected. Do not re-introduce demo data to “look live”.
 
 ---
 
@@ -135,39 +95,30 @@ Event envelope:
 }
 ```
 
-### Key events
-
-- `device.connected` / `device.disconnected` / `device.heartbeat` / `device.telemetry`
-- `task.created` / `task.queued` / `task.planning` / `task.routed`
-- `task.dispatched` / `task.started` / `task.stdout` / `task.stderr`
-- `task.completed` / `task.failed` / `task.cancelled` / `task.timeout`
-
 ---
 
 ## Implementation Priority
 
-### P0 (must work)
-1. Core connection config (Settings)
-2. REST client + DTOs
-3. WebSocket client + event parser
-4. ConnectionManager (state + reconnect + backoff)
-5. DeviceRepository + TaskRepository + EventRepository
-6. Central state (StateFlow)
-7. Device sync + Task sync
-8. Real Terminal task submission
+### P0
+1. ✅ Core API contract defined
+2. ✅ REST client + DTOs
+3. ✅ WebSocket client + event parser
+4. ✅ ConnectionManager (reconnect + backoff)
+5. ⬜ Repository implementations
+6. ⬜ ViewModels + UI wiring
+7. ⬜ Device + Task sync
+8. ⬜ Real Terminal task submission
 
 ### P1
-9. stdout/stderr streaming into Terminal
-10. Live Overview counters from same state
-11. Real queue + history
-12. Add Device flow
-13. Reconnect → full resync
+9. stdout/stderr streaming
+10. Live Overview
+11. Add Device flow
+12. Reconnect → full resync
 
 ### P2
-14. Event-driven Nervous System (no fake packets)
-15. Task trace mode
-16. Structured logs from EventRepository
-17. Auth / pairing improvements
+13. Event-driven Nervous System (no fake packets)
+14. Task trace
+15. Auth improvements
 
 ---
 
@@ -175,11 +126,11 @@ Event envelope:
 
 | ID | Date | Summary |
 |----|------|---------|
-| CP0 | 2026-08-26 | Full audit completed. Demo data mapped. Core API contract defined. Architecture plan locked. |
-| CP1 | TBD | data/ layer + ConnectionManager + typed models |
-| CP2 | TBD | Repositories + ViewModels wired to UI |
+| CP0 | 2026-08-26 | Full audit. Demo mapped. API contract defined. |
+| CP1 | 2026-08-26 | Domain models, repo interfaces, KerenApi, WebSocket, ConnectionManager, NetworkModule |
+| CP2 | TBD | Repository impls + ViewModels + Settings connect |
 | CP3 | TBD | Terminal real submit + event stream |
-| CP4 | TBD | Nervous System driven by real events only |
+| CP4 | TBD | Nervous System real-event only |
 
 ---
 
