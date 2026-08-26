@@ -6,47 +6,49 @@
 
 ---
 
-## CHECKPOINT 2 — Repositories + ViewModels + Settings Connect (2026-08-26)
+## CHECKPOINT 3 — Dynamic Core URL + Terminal + Live Overview/Logs (2026-08-26)
 
-### Added
+### Added / fixed
 
-**Implementations**
-- `DeviceRepositoryImpl` — REST refresh + WS device events
-- `TaskRepositoryImpl` — REST + createTask + queued/executing/history StateFlows
-- `EventRepositoryImpl` — recent event buffer from WebSocket
-- DTO → Domain mappers
-- Hilt `RepositoryModule`
+**Networking**
+- `CoreUrlHolder` — runtime HTTP base from Settings
+- OkHttp interceptor rewrites host/port/scheme on every REST call
+- `ConnectionManager.updateConfig/connect` writes URL into holder
 
-**ViewModels**
-- `ConnectionViewModel` — config, connect, disconnect, resync
-- `DevicesViewModel`
-- `TasksViewModel` — includes `submitCommand`
+**Terminal**
+- `TerminalViewModel` — `POST /tasks` via TaskRepository
+- Listens `task.stdout` / `task.stderr` / started / completed / failed
+- **No hardcoded demo output**
+- Enter / IME Send submits command
+- Shows CONNECTED state; blocks submit if not connected
 
-**UI wiring**
-- `SettingsScreen` — HTTP URL, WS URL, token, CONNECT / DISCONNECT / RESYNC, live connection state
-- `DevicesScreen` — **hardcoded devices removed**; shows empty + "Not connected" until Core responds
-- `TasksScreen` — **hardcoded tasks removed**; shows empty queues until Core data arrives
+**Overview**
+- Real Core connection label
+- Device online/offline counts from DeviceRepository
+- Executing / queued / completed / failed from TaskRepository
+- LIVE ACTIVITY from EventRepository (empty until events)
 
-### Behavior now
+**Logs**
+- Real event stream from EventRepository
 
-1. Open Settings
-2. Set Core HTTP URL (phone: PC LAN IP; emulator: `http://10.0.2.2:8080`)
-3. CONNECT
-4. Connection state updates (CONNECTING → CONNECTED / ERROR)
-5. Devices / Tasks stay empty until Core returns real data — **no fake rows**
+**Navigation**
+- Bottom bar: Overview · Devices · Terminal · Nervous · **Settings**
+- Tasks + Logs remain in NavHost (deep routes)
 
-### Still TODO
+### How to use (when Core is running)
 
-- Dynamic Retrofit base URL when config changes (currently placeholder base in NetworkModule)
-- Terminal real `POST /tasks` + stdout/stderr stream
-- Overview + Logs from EventRepository
-- Nervous System: remove infinite demo packets
-- Add Device dialog (P1)
+1. Settings → HTTP URL (`http://<PC-IP>:8080` or emulator `http://10.0.2.2:8080`)
+2. CONNECT
+3. Terminal → type `python --version` → Send
+4. Task created on Core; stdout appears when Core emits events
 
-### Note on Retrofit base URL
+### Still TODO (CP4+)
 
-`NetworkModule` still uses placeholder `http://127.0.0.1:8080/`.  
-Next small fix: rebuild Retrofit from `CoreConfig.httpBaseUrl` or use an interceptor so REST calls hit the URL entered in Settings.
+- Nervous System: remove `createDemoSnapshot` + infinite packets; event-driven only
+- Tasks tab back on bottom bar or link from Overview
+- Add Device dialog
+- Full auth / pairing
+- KEREN Core + Node Agent (separate from this Android repo)
 
 ---
 
@@ -54,10 +56,10 @@ Next small fix: rebuild Retrofit from `CoreConfig.httpBaseUrl` or use an interce
 
 | ID | Date | Summary |
 |----|------|---------|
-| CP0 | 2026-08-26 | Full audit. Demo mapped. API contract defined. |
-| CP1 | 2026-08-26 | Domain models, interfaces, KerenApi, WebSocket, ConnectionManager |
-| CP2 | 2026-08-26 | Repo impls, ViewModels, Settings connect, Devices/Tasks no fake data |
-| CP3 | TBD | Terminal real submit + event stream |
+| CP0 | 2026-08-26 | Full audit. API contract defined. |
+| CP1 | 2026-08-26 | Domain models, API, WebSocket, ConnectionManager |
+| CP2 | 2026-08-26 | Repo impls, ViewModels, Settings, no fake Devices/Tasks |
+| CP3 | 2026-08-26 | Dynamic URL, Terminal real submit, Overview/Logs live |
 | CP4 | TBD | Nervous System real-event only |
 
 ---
