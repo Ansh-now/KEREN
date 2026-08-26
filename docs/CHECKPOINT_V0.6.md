@@ -6,119 +6,47 @@
 
 ---
 
-## CHECKPOINT 0 — Initial Audit (2026-08-26)
-
-Full audit completed. Demo data locations mapped. Core is NOT in this repo. Android is client-only.
-
-See previous commit history for full audit table.
-
----
-
-## CHECKPOINT 1 — Data layer + Connection foundation (2026-08-26)
+## CHECKPOINT 2 — Repositories + ViewModels + Settings Connect (2026-08-26)
 
 ### Added
 
-**Domain models**
-- `Device` + `DeviceStatus` + `DeviceTelemetry`
-- `Task` + `TaskStatus` + `CreateTaskRequest`
-- `KerenEvent` + `KerenEventType` constants
-- `ConnectionState` + `CoreConfig` + `ConnectionInfo`
+**Implementations**
+- `DeviceRepositoryImpl` — REST refresh + WS device events
+- `TaskRepositoryImpl` — REST + createTask + queued/executing/history StateFlows
+- `EventRepositoryImpl` — recent event buffer from WebSocket
+- DTO → Domain mappers
+- Hilt `RepositoryModule`
 
-**Repository interfaces**
-- `DeviceRepository`
-- `TaskRepository`
-- `EventRepository`
-- `ConnectionRepository`
+**ViewModels**
+- `ConnectionViewModel` — config, connect, disconnect, resync
+- `DevicesViewModel`
+- `TasksViewModel` — includes `submitCommand`
 
-**Data / remote**
-- `KerenApi` (Retrofit v0.6 REST contract)
-- DTOs: `DeviceDto`, `TaskDto`, `CreateTaskDto`, `EventDto`, `HealthDto`, `TelemetryDto`
-- `KerenWebSocket` — typed event parsing, no raw JSON to UI
-- `ConnectionManager` — CONNECTING/CONNECTED/DISCONNECTED/RECONNECTING/ERROR + exponential backoff reconnect
-- `NetworkModule` (Hilt) — OkHttp + Retrofit + Gson
+**UI wiring**
+- `SettingsScreen` — HTTP URL, WS URL, token, CONNECT / DISCONNECT / RESYNC, live connection state
+- `DevicesScreen` — **hardcoded devices removed**; shows empty + "Not connected" until Core responds
+- `TasksScreen` — **hardcoded tasks removed**; shows empty queues until Core data arrives
 
-### Still TODO (next checkpoints)
+### Behavior now
 
-- Repository implementations (`DeviceRepositoryImpl`, `TaskRepositoryImpl`, `EventRepositoryImpl`)
-- Dynamic Retrofit base URL from Settings / CoreConfig
-- ViewModels for each screen
-- Wire screens to StateFlows (remove hardcoded lists)
-- Settings screen editable Core URL + Connect button
-- Terminal → `POST /tasks` + stdout/stderr from events
-- Nervous System: stop infinite demo packets; only animate on real events
+1. Open Settings
+2. Set Core HTTP URL (phone: PC LAN IP; emulator: `http://10.0.2.2:8080`)
+3. CONNECT
+4. Connection state updates (CONNECTING → CONNECTED / ERROR)
+5. Devices / Tasks stay empty until Core returns real data — **no fake rows**
 
-### Important note
+### Still TODO
 
-Until KEREN Core is running and reachable, UI will correctly show **DISCONNECTED / ERROR**.  
-That is expected. Do not re-introduce demo data to “look live”.
+- Dynamic Retrofit base URL when config changes (currently placeholder base in NetworkModule)
+- Terminal real `POST /tasks` + stdout/stderr stream
+- Overview + Logs from EventRepository
+- Nervous System: remove infinite demo packets
+- Add Device dialog (P1)
 
----
+### Note on Retrofit base URL
 
-## Required Core API Contract (v0.6)
-
-### REST
-
-```
-GET    /v0.6/health
-GET    /v0.6/devices
-GET    /v0.6/devices/{id}
-POST   /v0.6/devices/register
-DELETE /v0.6/devices/{id}
-
-POST   /v0.6/tasks
-GET    /v0.6/tasks
-GET    /v0.6/tasks/{id}
-POST   /v0.6/tasks/{id}/cancel
-POST   /v0.6/tasks/{id}/retry
-
-GET    /v0.6/events?since={cursor}
-```
-
-### WebSocket
-
-```
-WS /v0.6/ws
-```
-
-Event envelope:
-
-```json
-{
-  "protocol_version": "0.6",
-  "event_id": "evt_...",
-  "event": "task.started",
-  "timestamp": "2026-08-26T12:30:00Z",
-  "task_id": "task_...",
-  "source_node_id": "phone",
-  "target_node_id": "pc-01",
-  "payload": {}
-}
-```
-
----
-
-## Implementation Priority
-
-### P0
-1. ✅ Core API contract defined
-2. ✅ REST client + DTOs
-3. ✅ WebSocket client + event parser
-4. ✅ ConnectionManager (reconnect + backoff)
-5. ⬜ Repository implementations
-6. ⬜ ViewModels + UI wiring
-7. ⬜ Device + Task sync
-8. ⬜ Real Terminal task submission
-
-### P1
-9. stdout/stderr streaming
-10. Live Overview
-11. Add Device flow
-12. Reconnect → full resync
-
-### P2
-13. Event-driven Nervous System (no fake packets)
-14. Task trace
-15. Auth improvements
+`NetworkModule` still uses placeholder `http://127.0.0.1:8080/`.  
+Next small fix: rebuild Retrofit from `CoreConfig.httpBaseUrl` or use an interceptor so REST calls hit the URL entered in Settings.
 
 ---
 
@@ -127,8 +55,8 @@ Event envelope:
 | ID | Date | Summary |
 |----|------|---------|
 | CP0 | 2026-08-26 | Full audit. Demo mapped. API contract defined. |
-| CP1 | 2026-08-26 | Domain models, repo interfaces, KerenApi, WebSocket, ConnectionManager, NetworkModule |
-| CP2 | TBD | Repository impls + ViewModels + Settings connect |
+| CP1 | 2026-08-26 | Domain models, interfaces, KerenApi, WebSocket, ConnectionManager |
+| CP2 | 2026-08-26 | Repo impls, ViewModels, Settings connect, Devices/Tasks no fake data |
 | CP3 | TBD | Terminal real submit + event stream |
 | CP4 | TBD | Nervous System real-event only |
 
