@@ -5,31 +5,48 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.keren.control.domain.model.ConnectionState
 import com.keren.control.ui.theme.*
+import com.keren.control.ui.viewmodel.TerminalViewModel
+import kotlinx.coroutines.launch
 
 @Composable
-fun TerminalScreen() {
+fun TerminalScreen(
+    viewModel: TerminalViewModel = hiltViewModel()
+) {
     var command by remember { mutableStateOf("") }
-    val output = remember {
-        mutableStateListOf(
-            "KEREN TERMINAL",
-            "────────────────────────────────────────",
-            "",
-            "[PC-NODE-01]",
-            "$ python --version",
-            "Python 3.12.3",
-            "",
-            "$ "
-        )
+    val lines by viewModel.lines.collectAsState()
+    val connection by viewModel.connection.collectAsState()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(lines.size) {
+        if (lines.isNotEmpty()) {
+            listState.animateScrollToItem(lines.lastIndex)
+        }
+    }
+
+    fun send() {
+        val c = command
+        command = ""
+        viewModel.submit(c)
+        scope.launch {
+            // ensure scroll after submit
+        }
     }
 
     Column(
@@ -38,11 +55,27 @@ fun TerminalScreen() {
             .background(KerenBlack)
             .padding(16.dp)
     ) {
-        Text("TERMINAL", color = KerenBlue, fontSize = 18.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("TERMINAL", color = KerenBlue, fontSize = 18.sp)
+            Text(
+                text = connection.state.name,
+                color = when (connection.state) {
+                    ConnectionState.CONNECTED -> KerenGreen
+                    ConnectionState.ERROR -> KerenRed
+                    ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> KerenAmber
+                    else -> KerenGrey
+                },
+                fontSize = 11.sp
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Output area
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
@@ -50,11 +83,12 @@ fun TerminalScreen() {
                 .border(1.dp, KerenBorder, RoundedCornerShape(8.dp))
                 .padding(12.dp)
         ) {
-            items(output) { line ->
+            items(lines) { line ->
                 Text(
                     text = line,
                     color = when {
                         line.startsWith("$") -> KerenGreen
+                        line.startsWith("[stderr]") || line.contains("FAILED") || line.startsWith("ERROR") -> KerenRed
                         line.startsWith("[") -> KerenGrey
                         else -> KerenText
                     },
@@ -66,7 +100,6 @@ fun TerminalScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Input
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -86,7 +119,9 @@ fun TerminalScreen() {
                 ),
                 cursorBrush = SolidColor(KerenBlue),
                 modifier = Modifier.weight(1f),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { send() })
             )
         }
     }
